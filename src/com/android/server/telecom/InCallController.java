@@ -32,6 +32,8 @@ import android.os.Looper;
 import android.os.RemoteException;
 import android.os.Trace;
 import android.os.UserHandle;
+import android.os.Vibrator;
+import android.provider.Settings;
 import android.telecom.CallAudioState;
 import android.telecom.ConnectionService;
 import android.telecom.InCallService;
@@ -63,6 +65,12 @@ import java.util.concurrent.TimeUnit;
  * a binding to the {@link IInCallService} (implemented by the in-call app).
  */
 public class InCallController extends CallsManagerListenerBase {
+
+    private static final long[] INCALL_VIBRATION_PATTERN = {
+            100,
+            200,
+            0,
+    };
 
     public class InCallServiceConnection {
         /**
@@ -909,6 +917,17 @@ public class InCallController extends CallsManagerListenerBase {
 
     @Override
     public void onCallStateChanged(Call call, int oldState, int newState) {
+        boolean vibrateOnConnect = Settings.System.getIntForUser(mContext.getContentResolver(),
+            Settings.System.INCALL_FEEDBACK_VIBRATE, 0, UserHandle.USER_CURRENT) == 1;
+        boolean vibrateOnDisconnect = Settings.System.getIntForUser(mContext.getContentResolver(),
+            Settings.System.INCALL_FEEDBACK_VIBRATE, 0, UserHandle.USER_CURRENT) == 1;
+
+        if (oldState == CallState.DIALING && newState == CallState.ACTIVE && vibrateOnConnect) {
+            vibrate(INCALL_VIBRATION_PATTERN);
+        } else if (oldState == CallState.ACTIVE && newState == CallState.DISCONNECTED
+                && vibrateOnDisconnect) {
+            vibrate(INCALL_VIBRATION_PATTERN);
+        }
         updateCall(call);
     }
 
@@ -1596,5 +1615,9 @@ public class InCallController extends CallsManagerListenerBase {
         }
         childCalls.addAll(parentCalls);
         return childCalls;
+    }
+
+    public void vibrate(long[] pattern) {
+        ((Vibrator) mContext.getSystemService(Context.VIBRATOR_SERVICE)).vibrate(pattern, -1);
     }
 }
